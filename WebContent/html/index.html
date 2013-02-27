@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>PropertyCross</title>
+		<meta name="viewport" content="width=device-width, user-scalable=no" />
+		
+		<link href="styles/kendo.mobile.all.min.css" rel="stylesheet"/>
+		<link href="styles/style.css" rel="stylesheet"/>
+		
+		<script src="lib/jquery-1.8.2.min.js"></script>
+		<script src="lib/jquery.jsonp-2.1.4.min.js"></script>
+		<script src="lib/kendo.all.min.js"></script>
+		<script src="js/propertycross.js"></script>
+		
+	</head>
+		
+	<body>
+	
+		<!-- common to all pages - header and footer -->
+		<div data-role="layout" data-id="default">
+			<!--  header -->
+	        <header data-role="header">
+	            <div data-role="navbar">
+	            	<span data-role="view-title">Property Cross</span>
+	           		<a id="favouritesButton" data-align="right" data-role="button" data-click="doFavourites">Faves</a>
+	            </div>
+	        </header>
+	        <!--View content will render here-->
+	        <footer data-role="footer">
+	            <div data-role="tabstrip">
+	                <a data-icon="home" href="">Home</a>
+	                <!-- <a data-icon="about" href="html/about.html">About</a>-->   
+	            </div> 
+	        </footer>
+    	</div>
+    	
+    	<!-- views -->
+		<div data-role="view" data-layout="default" id="home" data-model="viewModel">
+			<p>Use the form below to search for houses to buy.  You can search by place-name, 
+			postcode, or click 'My Location', to search in your current location.</p>
+			
+    		<div><input id="searchInput" value="" /></div>
+    		<a id="searchButton" class="button" data-role="button" data-click="doSearch">Go</a>
+    		<a id="myLocationButton" class="button" data-role="button" data-click="doMyLocationSearch">My Location</a>
+    		
+    		<div id="userMessage"></div>
+    		
+    		<div data-bind="invisible: isRecentSearchesInvisible">
+    			<h4>Recent searches:</h4>
+    			<ul id="recentSearchesListView"></ul>
+    			<script type="text/x-kendo-tmpl" id="recentSearchesTemplate">
+    				<div>${title}</div>
+				</script>
+    		</div>
+    		
+    		<div data-bind="invisible: isLocationsInvisible">
+    			<h4>Please select a location below:</h4>
+    			<ul id="locationsListView" data-role="listview" data-template="locationsTemplate" data-bind="source: locations, events: { click: searchLocation }"></ul>
+    			<script type="text/x-kendo-tmpl" id="locationsTemplate">
+    				<div>${longTitle}</div>
+				</script>
+    		</div>
+    		
+    	</div>
+    	 
+    	
+    	<div data-role="view" data-layout="default" id="results" data-model="viewModel">
+    		<div><h2>Results:</h2></div>
+			<ul id="resultsListView" data-role="listview" data-load-more="true" data-template="resultsTemplate" data-bind="source: dataSource, events: { click: showProperty }"></ul>
+    		      
+			<!-- template for each item in list -->
+    		<script type="text/x-kendo-tmpl" id="resultsTemplate">
+    			<div class="thumbnail-container">
+					<img src="${thumbnailUrl}" />
+				</div>
+        		<h3>£<span>${price}</span></h3>
+        		<p>${title}</p>
+			</script>
+			
+    	</div>
+    	
+    	<div data-role="view" data-layout="default" id="property" class="propertyView" data-model="viewModel">
+    		<div><h1>Property Details</h1></div>
+    		<div>
+    			<h1>£<span data-bind="text: currentItem.price"></span></h1>
+    			<h3 data-bind="text: currentItem.title"></h3>
+    			<img data-bind="srcPath: currentItem.imageUrl"/>
+    			<p><span data-bind="text: currentItem.bedrooms"></span> bedroom(s)</p>
+    			<p><span data-bind="text: currentItem.bathrooms"></span> bathroom(s)</p>
+    			<p data-bind="text: currentItem.summary"></p>
+    		</div>
+    	</div>
+    	
+		<script><!--
+		var app = new kendo.mobile.Application(document.body, 
+   		{
+       		transition:'slide'
+    	});
+    	
+		// special data-binding for image
+		kendo.data.binders.srcPath = kendo.data.Binder.extend( {        
+			refresh: function() 
+			{            
+				var value = this.bindings["srcPath"].get();            
+				if (value) {                
+					$(this.element).attr("src", value);            
+				}        
+			}    
+		});
+		
+		var query = "http://api.nestoria.co.uk/api";
+		
+		var params = {
+        	country:"uk",
+            pretty:"1",
+            action:"search_listings",
+            encoding:"json",
+            listing_type:"buy",
+            page:1,
+            //sort: "price_lowhigh",
+            place_name: function() {
+                return $("#searchInput").val();
+            }
+		};
+		
+		
+			
+		var viewModel = kendo.observable({ 
+			showProperty: function(e){
+    			var property = e.dataItem;
+    			this.set("currentItem", property); 
+    			app.navigate("#property");
+			},
+			searchLocation: function(e){
+    			var location = e.dataItem;
+    			this.set("currentItem", property); 
+    			app.navigate("#property");
+			},
+			//dataSource: dataSource,
+     		properties: [],
+     		locations: [],
+     		isLocationsInvisible: true,
+     		isRecentSearchesInvisible: false,
+     		currentItem: null
+     	});
+		
+		var searched = false;
+		
+		function doSearch(e) {
+			var place = $("#searchInput").val();
+    		if(place == ""){
+    			$("#userMessage").html("no search term entered");
+    			return;
+    		}
+    		var dataSource = getNewDataSource(viewModel);
+    		viewModel.dataSource = dataSource;
+	    	if($("#resultsListView").data("kendoMobileListView")){
+				var listview = $("#resultsListView").data("kendoMobileListView");
+				listview.refresh();
+				listview.dataSource = dataSource;
+			}
+	    	if($("#locationsListView").data("kendoMobileListView")){
+				var listview = $("#locationsListView").data("kendoMobileListView");
+				listview.locations = dataSource.locations;
+			}
+   			dataSource.read();
+    	}
+		
+		function getNewDataSource() {
+			return new kendo.data.DataSource({            
+	 			transport: {
+	  				read: {
+	  			    	url: query,
+	  			        contentType: "application/json; charset=utf-8",
+	  			        type: "GET",
+	  			        timeout:5000,
+	  			        dataType: "jsonp",
+	  			        data: params
+	  			    }
+	  			},
+	  			  
+	  			schema: {
+	  				data: function(data) {
+	  					viewModel.set("responseCode", data.responseCode)
+	  					 if (data.data != null){
+	  			    		return data.data;
+	  					 } else {
+	  						 return [];
+	  					 }
+	  			    },
+	  			    	
+	  				parse: function(results) {
+	  					// perform some processing over the response
+	  			    	return parseResponse(results);
+	  				}
+	  			},
+	  			pageSize: 6,
+	  			change: function(data) {
+	  				
+	  				if(viewModel.get("responseCode") == 1){
+	  					// we have a properties list
+	  					$("#userMessage").html("");
+	  					viewModel.set("properties", data.items);
+	  					viewModel.set("isLocationsInvisible", true);
+	  					viewModel.set("isRecentSearchesInvisible", false);
+		 				app.navigate("#results");
+	  				} else if (viewModel.get("responseCode") == 2){
+	  					// we have a locations list
+	  					viewModel.set("locations", data.items);
+	  					viewModel.set("isLocationsInvisible", false);
+	  					viewModel.set("isRecentSearchesInvisible", true);
+	  					$("#userMessage").html("multiple locations found");
+	  				} else {
+	  					$("#userMessage").html("no properties found");
+	  				}
+	          	}
+			});
+		}
+    		
+    	--></script>
+		
+	</body>
+		
+</html>
